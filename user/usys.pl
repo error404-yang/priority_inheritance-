@@ -42,3 +42,8 @@ entry("getpid");
 entry("sbrk");
 entry("pause");
 entry("uptime");
+entry("setpriority");
+entry("getpriority");
+entry("test_acquire");
+entry("test_release");
+entry("cpu_work");

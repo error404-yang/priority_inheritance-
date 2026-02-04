@@ -1,0 +1,1367 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>xv6 Scheduler Timeline Visualizer</title>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            /* Dark backgrounds for contrast */
+            --bg-primary: #1a1d23;
+            --bg-secondary: #21252b;
+            --bg-tertiary: #282c34;
+            --bg-elevated: #2c313a;
+            
+            --border-subtle: #3e4451;
+            --border-medium: #4b5263;
+            
+            --text-primary: #e6e6e6;
+            --text-secondary: #b8bdc6;
+            --text-muted: #7a8090;
+            
+            /* Bright vibrant accent colors */
+            --accent-primary: #00d4ff;
+            --accent-success: #00ff88;
+            --accent-warning: #ffbb00;
+            --accent-danger: #ff4466;
+            --accent-purple: #bb66ff;
+            --accent-orange: #ff8833;
+            
+            /* Bright priority colors */
+            --priority-high: #ff4466;
+            --priority-med: #ff8833;
+            --priority-low: #00bbff;
+            --priority-boost: #00ff88;
+            
+            /* Lock color */
+            --lock-color: #ffbb00;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'IBM Plex Sans', sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.6;
+        }
+
+        .header {
+            background: var(--bg-secondary);
+            border-bottom: 2px solid var(--accent-primary);
+            padding: 2rem;
+        }
+
+        .header-content {
+            max-width: 1600px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            font-size: 2rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 0.5rem;
+            font-family: 'IBM Plex Mono', monospace;
+        }
+
+        .subtitle {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+        }
+
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        .controls-panel {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-subtle);
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .controls-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1.5rem;
+        }
+
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .control-group h3 {
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: var(--accent-primary);
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            margin-bottom: 0.5rem;
+        }
+
+        .btn-group {
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            padding: 0.6rem 1.2rem;
+            background: var(--bg-elevated);
+            color: var(--text-primary);
+            border: 1px solid var(--border-medium);
+            border-radius: 6px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 0.85rem;
+            font-family: 'IBM Plex Sans', sans-serif;
+        }
+
+        .btn:hover {
+            background: var(--bg-tertiary);
+            border-color: var(--accent-primary);
+            transform: translateY(-1px);
+        }
+
+        .btn:active {
+            transform: scale(0.98);
+        }
+
+        .btn-success {
+            background: var(--accent-success);
+            color: var(--bg-primary);
+            border-color: var(--accent-success);
+            font-weight: 600;
+        }
+
+        .btn-success:hover {
+            filter: brightness(1.1);
+        }
+
+        .btn-danger {
+            background: var(--accent-danger);
+            color: white;
+            border-color: var(--accent-danger);
+            font-weight: 600;
+        }
+
+        .btn-danger:hover {
+            filter: brightness(1.1);
+        }
+
+        .file-upload {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            flex-wrap: wrap;
+        }
+
+        .file-input-label {
+            padding: 0.6rem 1.2rem;
+            background: var(--bg-tertiary);
+            border: 2px dashed var(--accent-primary);
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-weight: 500;
+            font-size: 0.85rem;
+            color: var(--accent-primary);
+        }
+
+        .file-input-label:hover {
+            background: var(--bg-elevated);
+            border-color: var(--accent-success);
+            color: var(--accent-success);
+        }
+
+        .file-input {
+            display: none;
+        }
+
+        .file-name {
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+            font-family: 'IBM Plex Mono', monospace;
+        }
+
+        .slider-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .slider-label {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+        }
+
+        .slider-label span:last-child {
+            color: var(--accent-primary);
+            font-weight: 700;
+            font-family: 'IBM Plex Mono', monospace;
+        }
+
+        .slider {
+            width: 100%;
+            height: 6px;
+            border-radius: 3px;
+            background: var(--bg-tertiary);
+            outline: none;
+            -webkit-appearance: none;
+        }
+
+        .slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: var(--accent-primary);
+            cursor: pointer;
+            transition: all 0.2s;
+            box-shadow: 0 0 8px rgba(0, 212, 255, 0.6);
+        }
+
+        .slider::-webkit-slider-thumb:hover {
+            transform: scale(1.2);
+            box-shadow: 0 0 12px rgba(0, 212, 255, 0.9);
+        }
+
+        .slider::-moz-range-thumb {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: var(--accent-primary);
+            cursor: pointer;
+            border: none;
+        }
+
+        .stats-bar {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .stat-card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-subtle);
+            border-radius: 6px;
+            padding: 1.25rem;
+            text-align: center;
+            transition: all 0.2s;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 3px;
+            background: linear-gradient(90deg, var(--accent-primary), var(--accent-purple), var(--accent-danger));
+            opacity: 0.8;
+        }
+
+        .stat-card:hover {
+            border-color: var(--accent-primary);
+            transform: translateY(-2px);
+        }
+
+        .stat-value {
+            font-size: 1.75rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, var(--accent-primary), var(--accent-success));
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            font-family: 'IBM Plex Mono', monospace;
+        }
+
+        .stat-label {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-top: 0.5rem;
+        }
+
+        .timeline-container {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-subtle);
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .timeline-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid var(--border-subtle);
+        }
+
+        .timeline-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .timeline-controls {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .timeline-btn {
+            padding: 0.5rem 1rem;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-subtle);
+            border-radius: 6px;
+            color: var(--text-primary);
+            cursor: pointer;
+            font-size: 0.8rem;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+
+        .timeline-btn:hover {
+            background: var(--bg-elevated);
+            border-color: var(--border-medium);
+        }
+
+        .timeline-btn.active {
+            background: var(--accent-primary);
+            border-color: var(--accent-primary);
+            color: var(--bg-primary);
+            font-weight: 600;
+        }
+
+        .timeline-scroll-wrapper {
+            overflow-x: auto;
+            overflow-y: visible;
+            padding-bottom: 1rem;
+        }
+
+        .cpu-timeline {
+            position: relative;
+            margin-bottom: 2rem;
+            width: 100%;
+        }
+
+        .timeline-content {
+            position: relative;
+            width: 100%;
+            transition: width 0.3s ease;
+        }
+
+        .time-axis {
+            display: flex;
+            position: relative;
+            height: 32px;
+            border-bottom: 2px solid var(--accent-primary);
+            margin-bottom: 1rem;
+            width: 100%;
+        }
+
+        .time-tick {
+            position: absolute;
+            height: 100%;
+            border-left: 1px solid var(--border-subtle);
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-end;
+        }
+
+        .time-tick.major {
+            border-left: 1px solid var(--accent-primary);
+        }
+
+        .time-label {
+            font-size: 0.7rem;
+            color: var(--accent-primary);
+            margin-left: -1.25rem;
+            margin-top: 0.5rem;
+            white-space: nowrap;
+            font-family: 'IBM Plex Mono', monospace;
+            font-weight: 600;
+        }
+
+        .cpu-row {
+            display: flex;
+            align-items: center;
+            margin-bottom: 1.5rem;
+            position: relative;
+        }
+
+        .cpu-label {
+            width: 110px;
+            font-weight: 600;
+            font-size: 0.85rem;
+            flex-shrink: 0;
+            padding-right: 1rem;
+        }
+
+        .cpu-label-main {
+            display: block;
+            color: var(--accent-warning);
+            font-size: 0.9rem;
+            font-family: 'IBM Plex Mono', monospace;
+            font-weight: 700;
+        }
+
+        .cpu-label-sub {
+            display: block;
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            margin-top: 0.2rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .cpu-track {
+            flex: 1;
+            height: 48px;
+            background: var(--bg-tertiary);
+            border-radius: 6px;
+            position: relative;
+            overflow: visible;
+            border: 1px solid var(--border-subtle);
+        }
+
+        .process-segment {
+            position: absolute;
+            height: 100%;
+            border-radius: 5px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.8rem;
+            font-weight: 700;
+            color: white;
+            cursor: pointer;
+            transition: all 0.2s;
+            overflow: hidden;
+            font-family: 'IBM Plex Mono', monospace;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+        }
+
+        .process-segment:hover {
+            transform: translateY(-3px);
+            z-index: 10;
+            filter: brightness(1.15);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        }
+
+        .process-segment.pri-1 {
+            background: linear-gradient(135deg, #ff4466, #ff6688);
+        }
+
+        .process-segment.pri-5 {
+            background: linear-gradient(135deg, #ff8833, #ffaa55);
+        }
+
+        .process-segment.pri-10 {
+            background: linear-gradient(135deg, #00bbff, #33ccff);
+        }
+
+        .process-segment.boosted {
+            background: linear-gradient(135deg, #00ff88, #33ffaa);
+            position: relative;
+            animation: boostPulse 2s ease-in-out infinite;
+        }
+
+        @keyframes boostPulse {
+            0%, 100% { filter: brightness(1); }
+            50% { filter: brightness(1.15); }
+        }
+
+        .process-segment.boosted::after {
+            content: '⚡';
+            position: absolute;
+            right: 0.5rem;
+            font-size: 1rem;
+            opacity: 0.9;
+        }
+
+        .segment-tooltip {
+            position: absolute;
+            bottom: 55px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: var(--bg-primary);
+            border: 2px solid var(--accent-primary);
+            padding: 0.7rem 0.9rem;
+            border-radius: 6px;
+            font-size: 0.75rem;
+            white-space: nowrap;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.2s;
+            z-index: 100;
+            box-shadow: 0 4px 16px rgba(0, 212, 255, 0.3);
+        }
+
+        .process-segment:hover .segment-tooltip {
+            opacity: 1;
+        }
+
+        .lock-track {
+            margin-top: 1.5rem;
+            padding-top: 1.5rem;
+            border-top: 1px solid var(--border-subtle);
+        }
+
+        .lock-row {
+            display: flex;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+
+        .lock-label {
+            width: 110px;
+            font-weight: 700;
+            font-size: 0.85rem;
+            color: var(--lock-color);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            flex-shrink: 0;
+            font-family: 'IBM Plex Mono', monospace;
+        }
+
+        .lock-segment {
+            position: absolute;
+            height: 36px;
+            background: linear-gradient(135deg, #ffbb00, #ffdd33);
+            border-radius: 5px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.75rem;
+            font-weight: 700;
+            color: var(--bg-primary);
+            cursor: pointer;
+            transition: all 0.2s;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+        }
+
+        .lock-segment:hover {
+            transform: translateY(-3px);
+            filter: brightness(1.1);
+            box-shadow: 0 4px 12px rgba(255, 187, 0, 0.4);
+        }
+
+        .boost-marker {
+            position: absolute;
+            width: 3px;
+            height: 100%;
+            background: var(--accent-success);
+            z-index: 5;
+            box-shadow: 0 0 8px var(--accent-success);
+        }
+
+        .boost-marker::before {
+            content: '⚡';
+            position: absolute;
+            top: -26px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 1.1rem;
+            color: var(--accent-success);
+            filter: drop-shadow(0 0 4px var(--accent-success));
+        }
+
+        .events-panel {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-subtle);
+            border-radius: 8px;
+            padding: 1.5rem;
+            max-height: 500px;
+            overflow-y: auto;
+        }
+
+        .events-header {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+            color: var(--text-primary);
+        }
+
+        .event-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 1rem;
+            padding: 0.75rem;
+            background: var(--bg-tertiary);
+            border-radius: 6px;
+            margin-bottom: 0.5rem;
+            border-left: 3px solid var(--border-subtle);
+            transition: all 0.2s;
+        }
+
+        .event-item:hover {
+            background: var(--bg-elevated);
+            transform: translateX(4px);
+        }
+
+        .event-item.boost {
+            border-left-color: var(--accent-success);
+        }
+
+        .event-item.acquire {
+            border-left-color: var(--accent-warning);
+        }
+
+        .event-item.release {
+            border-left-color: var(--accent-primary);
+        }
+
+        .event-item.wait {
+            border-left-color: var(--accent-danger);
+        }
+
+        .event-time {
+            font-weight: 700;
+            color: var(--accent-primary);
+            min-width: 60px;
+            font-family: 'IBM Plex Mono', monospace;
+        }
+
+        .event-desc {
+            flex: 1;
+            font-size: 0.85rem;
+            line-height: 1.5;
+        }
+
+        .event-tag {
+            display: inline-block;
+            padding: 0.2rem 0.5rem;
+            background: var(--bg-primary);
+            border: 1px solid var(--border-medium);
+            border-radius: 4px;
+            font-size: 0.7rem;
+            font-weight: 600;
+            margin-left: 0.5rem;
+            font-family: 'IBM Plex Mono', monospace;
+        }
+
+        .legend {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-subtle);
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin-top: 1.5rem;
+        }
+
+        .legend-title {
+            font-weight: 600;
+            margin-bottom: 1rem;
+            color: var(--text-primary);
+        }
+
+        .legend-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .legend-color {
+            width: 36px;
+            height: 22px;
+            border-radius: 4px;
+            flex-shrink: 0;
+        }
+
+        .legend-text {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+        }
+
+        .code-block {
+            background: var(--bg-primary);
+            border: 1px solid var(--border-subtle);
+            border-radius: 6px;
+            padding: 0.75rem;
+            margin-top: 0.75rem;
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 0.8rem;
+            overflow-x: auto;
+        }
+
+        .code-block pre {
+            margin: 0;
+            color: var(--accent-success);
+        }
+
+        .process-view {
+            display: none;
+        }
+
+        .process-view.active {
+            display: block;
+        }
+
+        .process-timeline-row {
+            display: flex;
+            align-items: center;
+            margin-bottom: 1.5rem;
+        }
+
+        .process-name {
+            width: 110px;
+            font-weight: 600;
+            font-size: 0.85rem;
+            flex-shrink: 0;
+            padding-right: 1rem;
+        }
+
+        .info-box {
+            background: var(--bg-secondary);
+            border: 2px solid var(--accent-primary);
+            border-left-width: 4px;
+            border-radius: 6px;
+            padding: 1rem;
+            margin-bottom: 1.5rem;
+            font-size: 0.85rem;
+        }
+
+        .info-box strong {
+            color: var(--accent-primary);
+            font-weight: 700;
+        }
+
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: var(--bg-tertiary);
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: var(--accent-primary);
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--accent-success);
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="header-content">
+            <h1>xv6 Scheduler Timeline Visualizer</h1>
+            <p class="subtitle">Interactive CPU scheduling and priority inheritance visualization</p>
+        </div>
+    </div>
+
+    <div class="container">
+        <!-- Info Box -->
+        <div class="info-box">
+            <strong>CPU 0 Explanation:</strong> In multi-core systems, each CPU core runs processes independently. 
+            "CPU 0" represents the first processor core. The timeline shows which process (LOW, MED, HIGH) is running on CPU 0 at each moment in time.
+        </div>
+
+        <!-- Controls Panel -->
+        <div class="controls-panel">
+            <div class="controls-grid">
+                <div class="control-group">
+                    <h3>Demo Data</h3>
+                    <div class="btn-group">
+                        <button class="btn btn-success" onclick="loadDemoWithout()">Without Inheritance</button>
+                        <button class="btn btn-success" onclick="loadDemoWith()">With Inheritance</button>
+                        <button class="btn btn-danger" onclick="clearTimeline()">Clear</button>
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <h3>Import Logs</h3>
+                    <div class="file-upload">
+                        <label class="file-input-label">
+                            <input type="file" class="file-input" id="logFile" accept=".txt,.log" onchange="handleFileUpload(event)">
+                            Choose File
+                        </label>
+                        <span class="file-name" id="fileName">No file chosen</span>
+                    </div>
+                    <div class="code-block">
+                        <pre>Format: [TIME][EVENT][PID][PRIORITY][DETAILS]
+Example: [1234][ACQUIRE][5][10][test_lock]</pre>
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <h3>Timeline Controls</h3>
+                    <div class="slider-group">
+                        <div class="slider-label">
+                            <span>Horizontal Zoom:</span>
+                            <span id="zoomValue">1.0x</span>
+                        </div>
+                        <input type="range" class="slider" id="zoomSlider" min="1" max="10" step="0.5" value="1" oninput="updateZoom(this.value)">
+                    </div>
+                    <div class="slider-group">
+                        <div class="slider-label">
+                            <span>Time Tick Interval:</span>
+                            <span id="intervalValue">1000ms</span>
+                        </div>
+                        <input type="range" class="slider" id="intervalSlider" min="100" max="2000" step="100" value="1000" oninput="updateInterval(this.value)">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Stats Bar -->
+        <div class="stats-bar" id="statsBar">
+            <div class="stat-card">
+                <div class="stat-value" id="totalTime">0ms</div>
+                <div class="stat-label">Total Time</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="contextSwitches">0</div>
+                <div class="stat-label">Context Switches</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="boostEvents">0</div>
+                <div class="stat-label">Priority Boosts</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="avgWait">0ms</div>
+                <div class="stat-label">Avg Wait Time</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="lockCount">0</div>
+                <div class="stat-label">Lock Operations</div>
+            </div>
+        </div>
+
+        <!-- CPU Timeline -->
+        <div class="timeline-container">
+            <div class="timeline-header">
+                <div class="timeline-title">Scheduler Timeline</div>
+                <div class="timeline-controls">
+                    <button class="timeline-btn active" data-view="cpu" onclick="toggleView('cpu')">CPU View</button>
+                    <button class="timeline-btn" data-view="process" onclick="toggleView('process')">Process View</button>
+                </div>
+            </div>
+
+            <div id="cpuView" class="cpu-view">
+                <div class="timeline-scroll-wrapper">
+                    <div class="cpu-timeline" id="cpuTimeline">
+                        <!-- Timeline content will be generated here -->
+                    </div>
+
+                    <!-- Lock Ownership Timeline -->
+                    <div class="lock-track">
+                        <div class="lock-row">
+                            <div class="lock-label">
+                                <span>🔒</span>
+                                <span>Locks</span>
+                            </div>
+                            <div class="cpu-track" id="lockTrack">
+                                <!-- Lock segments will be generated here -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="processView" class="process-view">
+                <div class="timeline-scroll-wrapper">
+                    <div class="cpu-timeline" id="processTimeline">
+                        <!-- Process-centric view will be generated here -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Events Panel -->
+        <div class="events-panel">
+            <div class="events-header">Event Log</div>
+            <div id="eventsList">
+                <div style="text-align: center; color: var(--text-muted); padding: 2rem;">
+                    Load demo data or import logs to see events
+                </div>
+            </div>
+        </div>
+
+        <!-- Legend -->
+        <div class="legend">
+            <div class="legend-title">Legend</div>
+            <div class="legend-grid">
+                <div class="legend-item">
+                    <div class="legend-color" style="background: linear-gradient(135deg, #ff4466, #ff6688);"></div>
+                    <div class="legend-text">Priority 1 (HIGH)</div>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: linear-gradient(135deg, #ff8833, #ffaa55);"></div>
+                    <div class="legend-text">Priority 5 (MEDIUM)</div>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: linear-gradient(135deg, #00bbff, #33ccff);"></div>
+                    <div class="legend-text">Priority 10 (LOW)</div>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: linear-gradient(135deg, #00ff88, #33ffaa);"></div>
+                    <div class="legend-text">Priority Boosted ⚡</div>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: linear-gradient(135deg, #ffbb00, #ffdd33);"></div>
+                    <div class="legend-text">Lock Held 🔒</div>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: var(--accent-success); width: 3px;"></div>
+                    <div class="legend-text">⚡ Boost Event</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let timelineData = [];
+        let events = [];
+        let zoomLevel = 1.0;
+        let tickInterval = 1000;
+        let currentView = 'cpu';
+        let currentLocks = [];
+        let boostMarkers = [];
+
+        // Demo data - WITHOUT priority inheritance
+        function loadDemoWithout() {
+            timelineData = [
+                { cpu: 0, pid: 5, name: 'LOW', priority: 10, start: 0, end: 2000, boosted: false },
+                { cpu: 0, pid: 6, name: 'MED', priority: 5, start: 2000, end: 6000, boosted: false },
+                { cpu: 0, pid: 5, name: 'LOW', priority: 10, start: 6000, end: 8000, boosted: false },
+                { cpu: 0, pid: 7, name: 'HIGH', priority: 1, start: 8000, end: 9000, boosted: false },
+            ];
+
+            events = [
+                { time: 0, type: 'acquire', pid: 5, priority: 10, desc: 'LOW acquires test_lock' },
+                { time: 2000, type: 'preempt', pid: 6, priority: 5, desc: 'MEDIUM preempts LOW (higher priority)' },
+                { time: 3000, type: 'wait', pid: 7, priority: 1, desc: 'HIGH waits for test_lock (held by LOW)' },
+                { time: 6000, type: 'resume', pid: 5, priority: 10, desc: 'LOW resumes execution' },
+                { time: 8000, type: 'release', pid: 5, priority: 10, desc: 'LOW releases test_lock' },
+                { time: 8000, type: 'acquire', pid: 7, priority: 1, desc: 'HIGH acquires test_lock' },
+                { time: 9000, type: 'release', pid: 7, priority: 1, desc: 'HIGH releases test_lock' },
+            ];
+
+            currentLocks = [
+                { name: 'test_lock', pid: 5, start: 0, end: 8000 }
+            ];
+
+            boostMarkers = [];
+
+            renderTimeline();
+            renderProcessView();
+            renderEvents();
+            updateStats();
+        }
+
+        // Demo data - WITH priority inheritance
+        function loadDemoWith() {
+            timelineData = [
+                { cpu: 0, pid: 5, name: 'LOW', priority: 10, start: 0, end: 3000, boosted: false },
+                { cpu: 0, pid: 5, name: 'LOW', priority: 1, start: 3000, end: 5000, boosted: true },
+                { cpu: 0, pid: 7, name: 'HIGH', priority: 1, start: 5000, end: 6000, boosted: false },
+                { cpu: 0, pid: 6, name: 'MED', priority: 5, start: 6000, end: 9000, boosted: false },
+            ];
+
+            events = [
+                { time: 0, type: 'acquire', pid: 5, priority: 10, desc: 'LOW acquires test_lock' },
+                { time: 2000, type: 'start', pid: 6, priority: 5, desc: 'MEDIUM starts execution' },
+                { time: 3000, type: 'wait', pid: 7, priority: 1, desc: 'HIGH waits for test_lock' },
+                { time: 3000, type: 'boost', pid: 5, priority: '10→1', desc: 'LOW boosted to priority 1 (inherited from HIGH)' },
+                { time: 5000, type: 'release', pid: 5, priority: 1, desc: 'LOW releases test_lock, priority restored to 10' },
+                { time: 5000, type: 'acquire', pid: 7, priority: 1, desc: 'HIGH acquires test_lock' },
+                { time: 6000, type: 'release', pid: 7, priority: 1, desc: 'HIGH releases test_lock' },
+            ];
+
+            currentLocks = [
+                { name: 'test_lock', pid: 5, start: 0, end: 5000 },
+                { name: 'test_lock', pid: 7, start: 5000, end: 6000 }
+            ];
+
+            boostMarkers = [3000];
+
+            renderTimeline();
+            renderProcessView();
+            renderEvents();
+            updateStats();
+        }
+
+        function renderTimeline() {
+            const container = document.getElementById('cpuTimeline');
+            container.innerHTML = '';
+
+            if (timelineData.length === 0) return;
+
+            const maxTime = Math.max(...timelineData.map(d => d.end), 9000);
+
+            const contentWrapper = document.createElement('div');
+            contentWrapper.className = 'timeline-content';
+            contentWrapper.style.width = `${zoomLevel * 100}%`;
+
+            const axis = document.createElement('div');
+            axis.className = 'time-axis';
+            
+            for (let i = 0; i <= maxTime; i += tickInterval) {
+                const tick = document.createElement('div');
+                tick.className = 'time-tick';
+                if (i % (tickInterval * 5) === 0) tick.classList.add('major');
+                
+                const position = (i / maxTime) * 100;
+                tick.style.left = `${position}%`;
+                
+                const label = document.createElement('div');
+                label.className = 'time-label';
+                label.textContent = `${i}ms`;
+                tick.appendChild(label);
+                axis.appendChild(tick);
+            }
+            contentWrapper.appendChild(axis);
+
+            const cpuRow = document.createElement('div');
+            cpuRow.className = 'cpu-row';
+
+            const label = document.createElement('div');
+            label.className = 'cpu-label';
+            label.innerHTML = `
+                <span class="cpu-label-main">CPU 0</span>
+                <span class="cpu-label-sub">Core</span>
+            `;
+            cpuRow.appendChild(label);
+
+            const track = document.createElement('div');
+            track.className = 'cpu-track';
+
+            timelineData.forEach(segment => {
+                const seg = document.createElement('div');
+                seg.className = `process-segment pri-${segment.priority}`;
+                if (segment.boosted) seg.classList.add('boosted');
+                
+                const leftPos = (segment.start / maxTime) * 100;
+                const width = ((segment.end - segment.start) / maxTime) * 100;
+                
+                seg.style.left = `${leftPos}%`;
+                seg.style.width = `${width}%`;
+                seg.textContent = `${segment.name}`;
+
+                const tooltip = document.createElement('div');
+                tooltip.className = 'segment-tooltip';
+                tooltip.innerHTML = `
+                    <strong>${segment.name}</strong> (PID ${segment.pid})<br>
+                    Priority: ${segment.priority}${segment.boosted ? ' ⚡' : ''}<br>
+                    CPU: ${segment.cpu}<br>
+                    ${segment.start}ms → ${segment.end}ms (${segment.end - segment.start}ms)
+                `;
+                seg.appendChild(tooltip);
+
+                track.appendChild(seg);
+            });
+
+            boostMarkers.forEach(time => {
+                const marker = document.createElement('div');
+                marker.className = 'boost-marker';
+                const markerPos = (time / maxTime) * 100;
+                marker.style.left = `${markerPos}%`;
+                track.appendChild(marker);
+            });
+
+            cpuRow.appendChild(track);
+            contentWrapper.appendChild(cpuRow);
+            container.appendChild(contentWrapper);
+
+            renderLocks(maxTime);
+        }
+
+        function renderLocks(maxTime) {
+            const lockTrack = document.getElementById('lockTrack');
+            lockTrack.innerHTML = '';
+            lockTrack.style.width = `${zoomLevel * 100}%`;
+
+            currentLocks.forEach(lock => {
+                const seg = document.createElement('div');
+                seg.className = 'lock-segment';
+                
+                const leftPos = (lock.start / maxTime) * 100;
+                const width = ((lock.end - lock.start) / maxTime) * 100;
+                
+                seg.style.left = `${leftPos}%`;
+                seg.style.width = `${width}%`;
+                seg.textContent = `PID ${lock.pid}`;
+                
+                const tooltip = document.createElement('div');
+                tooltip.className = 'segment-tooltip';
+                tooltip.innerHTML = `
+                    <strong>${lock.name}</strong><br>
+                    Held by: PID ${lock.pid}<br>
+                    ${lock.start}ms → ${lock.end}ms (${lock.end - lock.start}ms)
+                `;
+                seg.appendChild(tooltip);
+                
+                lockTrack.appendChild(seg);
+            });
+        }
+
+        function renderProcessView() {
+            const container = document.getElementById('processTimeline');
+            container.innerHTML = '';
+
+            if (timelineData.length === 0) return;
+
+            const maxTime = Math.max(...timelineData.map(d => d.end), 9000);
+
+            const contentWrapper = document.createElement('div');
+            contentWrapper.className = 'timeline-content';
+            contentWrapper.style.width = `${zoomLevel * 100}%`;
+
+            const axis = document.createElement('div');
+            axis.className = 'time-axis';
+            for (let i = 0; i <= maxTime; i += tickInterval) {
+                const tick = document.createElement('div');
+                tick.className = 'time-tick';
+                if (i % (tickInterval * 5) === 0) tick.classList.add('major');
+                
+                const position = (i / maxTime) * 100;
+                tick.style.left = `${position}%`;
+                
+                const label = document.createElement('div');
+                label.className = 'time-label';
+                label.textContent = `${i}ms`;
+                tick.appendChild(label);
+                axis.appendChild(tick);
+            }
+            contentWrapper.appendChild(axis);
+
+            const processList = [...new Set(timelineData.map(d => `${d.name}-${d.pid}`))];
+            
+            processList.forEach(processKey => {
+                const [name, pid] = processKey.split('-');
+                const processSegments = timelineData.filter(d => d.name === name && d.pid == pid);
+                
+                const row = document.createElement('div');
+                row.className = 'process-timeline-row';
+
+                const label = document.createElement('div');
+                label.className = 'process-name';
+                label.innerHTML = `
+                    <span class="cpu-label-main">${name}</span>
+                    <span class="cpu-label-sub">PID ${pid}</span>
+                `;
+                row.appendChild(label);
+
+                const track = document.createElement('div');
+                track.className = 'cpu-track';
+
+                processSegments.forEach(segment => {
+                    const seg = document.createElement('div');
+                    seg.className = `process-segment pri-${segment.priority}`;
+                    if (segment.boosted) seg.classList.add('boosted');
+                    
+                    const leftPos = (segment.start / maxTime) * 100;
+                    const width = ((segment.end - segment.start) / maxTime) * 100;
+                    
+                    seg.style.left = `${leftPos}%`;
+                    seg.style.width = `${width}%`;
+                    seg.textContent = `CPU ${segment.cpu}`;
+
+                    const tooltip = document.createElement('div');
+                    tooltip.className = 'segment-tooltip';
+                    tooltip.innerHTML = `
+                        <strong>${segment.name}</strong> on CPU ${segment.cpu}<br>
+                        Priority: ${segment.priority}${segment.boosted ? ' ⚡' : ''}<br>
+                        ${segment.start}ms → ${segment.end}ms (${segment.end - segment.start}ms)
+                    `;
+                    seg.appendChild(tooltip);
+
+                    track.appendChild(seg);
+                });
+
+                row.appendChild(track);
+                contentWrapper.appendChild(row);
+            });
+
+            container.appendChild(contentWrapper);
+        }
+
+        function renderEvents() {
+            const container = document.getElementById('eventsList');
+            container.innerHTML = '';
+
+            if (events.length === 0) {
+                container.innerHTML = '<div style="text-align: center; color: var(--text-muted); padding: 2rem;">No events to display</div>';
+                return;
+            }
+
+            events.forEach(event => {
+                const item = document.createElement('div');
+                item.className = `event-item ${event.type}`;
+
+                const time = document.createElement('div');
+                time.className = 'event-time';
+                time.textContent = `${event.time}ms`;
+
+                const desc = document.createElement('div');
+                desc.className = 'event-desc';
+                desc.innerHTML = `
+                    ${event.desc}
+                    <span class="event-tag">PID ${event.pid}</span>
+                    <span class="event-tag">Pri ${event.priority}</span>
+                `;
+
+                item.appendChild(time);
+                item.appendChild(desc);
+                container.appendChild(item);
+            });
+        }
+
+        function updateStats() {
+            if (timelineData.length === 0) {
+                document.getElementById('totalTime').textContent = '0ms';
+                document.getElementById('contextSwitches').textContent = '0';
+                document.getElementById('boostEvents').textContent = '0';
+                document.getElementById('avgWait').textContent = '0ms';
+                document.getElementById('lockCount').textContent = '0';
+                return;
+            }
+
+            const maxTime = Math.max(...timelineData.map(d => d.end));
+            const switches = timelineData.length - 1;
+            const boosts = events.filter(e => e.type === 'boost').length;
+            const lockOps = events.filter(e => e.type === 'acquire' || e.type === 'release').length;
+            
+            document.getElementById('totalTime').textContent = `${maxTime}ms`;
+            document.getElementById('contextSwitches').textContent = switches;
+            document.getElementById('boostEvents').textContent = boosts;
+            document.getElementById('lockCount').textContent = lockOps;
+            
+            const waitEvents = events.filter(e => e.type === 'wait' && e.priority === 1);
+            if (waitEvents.length > 0) {
+                const highSegment = timelineData.find(d => d.name === 'HIGH');
+                const waitTime = highSegment ? (highSegment.start - waitEvents[0].time) : 0;
+                document.getElementById('avgWait').textContent = `${waitTime}ms`;
+            } else {
+                document.getElementById('avgWait').textContent = '0ms';
+            }
+        }
+
+        function handleFileUpload(event) {
+            const file = event.target.files[0];
+            if (file) {
+                document.getElementById('fileName').textContent = file.name;
+                
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    parseLogFile(e.target.result);
+                };
+                reader.readAsText(file);
+            }
+        }
+
+        function parseLogFile(content) {
+            const lines = content.split('\n').filter(line => line.trim());
+            const parsedEvents = [];
+
+            lines.forEach(line => {
+                const match = line.match(/\[(\d+)\]\[(\w+)\]\[(\d+)\]\[(\d+)\]\[(.+)\]/);
+                if (match) {
+                    const [, time, eventType, pid, priority, details] = match;
+                    parsedEvents.push({
+                        time: parseInt(time),
+                        type: eventType.toLowerCase(),
+                        pid: parseInt(pid),
+                        priority: parseInt(priority),
+                        desc: details
+                    });
+                }
+            });
+
+            if (parsedEvents.length > 0) {
+                events = parsedEvents.sort((a, b) => a.time - b.time);
+                renderEvents();
+                updateStats();
+                alert(`Log parsed: ${events.length} events found`);
+            } else {
+                alert('No valid entries found');
+            }
+        }
+
+        function clearTimeline() {
+            timelineData = [];
+            events = [];
+            currentLocks = [];
+            boostMarkers = [];
+            document.getElementById('cpuTimeline').innerHTML = '';
+            document.getElementById('processTimeline').innerHTML = '';
+            document.getElementById('lockTrack').innerHTML = '';
+            document.getElementById('eventsList').innerHTML = '<div style="text-align: center; color: var(--text-muted); padding: 2rem;">Load demo data or import logs to see events</div>';
+            document.getElementById('fileName').textContent = 'No file chosen';
+            updateStats();
+        }
+
+        function updateZoom(value) {
+            zoomLevel = parseFloat(value);
+            document.getElementById('zoomValue').textContent = `${value}x`;
+            renderTimeline();
+            renderProcessView();
+        }
+
+        function updateInterval(value) {
+            tickInterval = parseInt(value);
+            document.getElementById('intervalValue').textContent = `${value}ms`;
+            renderTimeline();
+            renderProcessView();
+        }
+
+        function toggleView(view) {
+            currentView = view;
+            
+            document.querySelectorAll('.timeline-btn').forEach(btn => {
+                btn.classList.remove('active');
+                if (btn.getAttribute('data-view') === view) {
+                    btn.classList.add('active');
+                }
+            });
+            
+            const cpuView = document.getElementById('cpuView');
+            const processView = document.getElementById('processView');
+            
+            if (view === 'cpu') {
+                cpuView.style.display = 'block';
+                processView.style.display = 'none';
+            } else {
+                cpuView.style.display = 'none';
+                processView.style.display = 'block';
+            }
+        }
+
+        window.addEventListener('load', () => {
+            setTimeout(() => loadDemoWith(), 300);
+        });
+    </script>
+</body>
+</html>

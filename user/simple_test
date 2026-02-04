@@ -1,0 +1,57 @@
+#include "kernel/types.h"
+#include "kernel/stat.h"
+#include "user/user.h"
+
+int
+main(int argc, char *argv[])
+{
+  printf("=== SIMPLE SCHEDULER TEST ===\n");
+  
+  // Test 1: Can we even fork?
+  int pid1 = fork();
+  if(pid1 < 0) {
+    printf("ERROR: fork failed\n");
+    exit(1);
+  }
+  
+  if(pid1 == 0) {
+    // Child 1
+    printf("CHILD1: Started (should run first)\n");
+    for(int i = 0; i < 3; i++) {
+      printf("CHILD1: iteration %d\n", i);
+      sleep(1);
+    }
+    printf("CHILD1: Exiting\n");
+    exit(0);
+  }
+  
+  // Parent: create second child
+  sleep(2); // Give child1 time to start
+  
+  int pid2 = fork();
+  if(pid2 < 0) {
+    printf("ERROR: fork failed\n");
+    exit(1);
+  }
+  
+  if(pid2 == 0) {
+    // Child 2
+    printf("CHILD2: Started (should run after child1)\n");
+    for(int i = 0; i < 3; i++) {
+      printf("CHILD2: iteration %d\n", i);
+      sleep(1);
+    }
+    printf("CHILD2: Exiting\n");
+    exit(0);
+  }
+  
+  // Parent: wait for both children
+  printf("PARENT: Waiting for children...\n");
+  wait(0);
+  printf("PARENT: First child done\n");
+  wait(0);
+  printf("PARENT: Second child done\n");
+  printf("PARENT: Test complete!\n");
+  
+  exit(0);
+}

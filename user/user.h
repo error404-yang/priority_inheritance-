@@ -5,6 +5,10 @@ struct stat;
 // system calls
 int fork(void);
 int exit(int) __attribute__((noreturn));
+// ADD THESE LINES:
+int sleep(int);
+int setpriority(int);
+int getpriority(void);
 int wait(int*);
 int pipe(int*);
 int write(int, const void*, int);
@@ -24,6 +28,9 @@ int getpid(void);
 char* sys_sbrk(int,int);
 int pause(int);
 int uptime(void);
+int test_acquire(void);
+int test_release(void);
+int cpu_work(int);
 
 // ulib.c
 int stat(const char*, struct stat*);

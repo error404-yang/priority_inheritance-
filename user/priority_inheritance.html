@@ -1,0 +1,875 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Priority Inheritance Visualizer</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #0f1419;
+            --surface: #1a1f2e;
+            --surface-light: #252d3d;
+            --border: #3d4657;
+            --text: #e4e7eb;
+            --text-dim: #9ca3af;
+            --danger: #ef4444;
+            --warning: #f59e0b;
+            --success: #10b981;
+            --info: #3b82f6;
+            --high-color: #ef4444;
+            --med-color: #f59e0b;
+            --low-color: #3b82f6;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.6;
+            padding: 2rem;
+        }
+
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 3rem;
+            padding-bottom: 2rem;
+            border-bottom: 2px solid var(--border);
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+            background: linear-gradient(135deg, var(--danger), var(--warning), var(--success));
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .subtitle {
+            color: var(--text-dim);
+            font-size: 1.1rem;
+        }
+
+        .intro {
+            background: var(--surface);
+            padding: 2rem;
+            border-radius: 12px;
+            margin-bottom: 3rem;
+            border-left: 4px solid var(--info);
+        }
+
+        .intro h2 {
+            color: var(--info);
+            margin-bottom: 1rem;
+            font-size: 1.5rem;
+        }
+
+        .controls {
+            text-align: center;
+            margin-bottom: 3rem;
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            background: var(--info);
+            color: white;
+            border: none;
+            padding: 1rem 2rem;
+            font-size: 1rem;
+            font-weight: 600;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-family: 'Inter', sans-serif;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 16px rgba(59, 130, 246, 0.3);
+        }
+
+        .btn-secondary {
+            background: var(--surface-light);
+            color: var(--text);
+        }
+
+        .btn-secondary:hover {
+            background: var(--border);
+        }
+
+        .comparison {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2rem;
+            margin-bottom: 3rem;
+        }
+
+        @media (max-width: 1200px) {
+            .comparison {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .scenario {
+            background: var(--surface);
+            padding: 2rem;
+            border-radius: 12px;
+            border: 2px solid var(--border);
+        }
+
+        .scenario.problem {
+            border-color: var(--danger);
+        }
+
+        .scenario.solution {
+            border-color: var(--success);
+        }
+
+        .scenario-header {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            margin-bottom: 2rem;
+            padding-bottom: 1rem;
+            border-bottom: 2px solid var(--border);
+        }
+
+        .scenario-icon {
+            font-size: 2rem;
+        }
+
+        .scenario-title {
+            font-size: 1.5rem;
+            font-weight: 700;
+        }
+
+        .scenario.problem .scenario-title {
+            color: var(--danger);
+        }
+
+        .scenario.solution .scenario-title {
+            color: var(--success);
+        }
+
+        /* TIMELINE STYLES */
+        .timeline-container {
+            background: var(--bg);
+            padding: 2rem;
+            border-radius: 8px;
+            margin-bottom: 2rem;
+        }
+
+        .timeline-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 1.5rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .timeline-title {
+            font-weight: 600;
+            color: var(--text-dim);
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .time-scale {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 0.5rem;
+            padding-left: 120px;
+        }
+
+        .time-marker {
+            flex: 1;
+            text-align: center;
+            font-size: 0.75rem;
+            color: var(--text-dim);
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .time-grid {
+            position: absolute;
+            top: 0;
+            left: 120px;
+            right: 0;
+            bottom: 0;
+            display: flex;
+            pointer-events: none;
+        }
+
+        .time-grid-line {
+            flex: 1;
+            border-left: 1px dashed var(--border);
+            opacity: 0.3;
+        }
+
+        .process-row {
+            display: flex;
+            align-items: center;
+            margin-bottom: 1rem;
+            position: relative;
+            min-height: 60px;
+        }
+
+        .process-label {
+            width: 120px;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            font-weight: 600;
+            font-size: 0.9rem;
+        }
+
+        .process-priority {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 32px;
+            height: 32px;
+            border-radius: 6px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .process-priority.high {
+            background: var(--high-color);
+            color: white;
+        }
+
+        .process-priority.medium {
+            background: var(--med-color);
+            color: white;
+        }
+
+        .process-priority.low {
+            background: var(--low-color);
+            color: white;
+        }
+
+        .process-timeline {
+            flex: 1;
+            position: relative;
+            height: 50px;
+            display: flex;
+        }
+
+        .time-block {
+            position: absolute;
+            height: 40px;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: white;
+            transition: all 0.3s ease;
+            opacity: 0;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+        }
+
+        .time-block.visible {
+            opacity: 1;
+        }
+
+        .time-block.high {
+            background: linear-gradient(135deg, var(--high-color), #dc2626);
+        }
+
+        .time-block.medium {
+            background: linear-gradient(135deg, var(--med-color), #d97706);
+        }
+
+        .time-block.low {
+            background: linear-gradient(135deg, var(--low-color), #2563eb);
+        }
+
+        .time-block.waiting {
+            background: repeating-linear-gradient(
+                45deg,
+                #ef4444,
+                #ef4444 10px,
+                #dc2626 10px,
+                #dc2626 20px
+            );
+            animation: waiting-pulse 1.5s ease-in-out infinite;
+        }
+
+        @keyframes waiting-pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+
+        .time-block.boosted {
+            background: linear-gradient(135deg, #10b981, #059669);
+            box-shadow: 0 0 20px rgba(16, 185, 129, 0.5);
+            animation: boost-glow 0.5s ease-in-out;
+        }
+
+        @keyframes boost-glow {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+
+        .annotation {
+            position: absolute;
+            top: -25px;
+            font-size: 0.7rem;
+            color: var(--warning);
+            font-weight: 600;
+            white-space: nowrap;
+            animation: fadeIn 0.3s ease-in;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-5px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .lock-icon {
+            position: absolute;
+            bottom: -20px;
+            font-size: 1.2rem;
+            animation: fadeIn 0.3s ease-in;
+        }
+
+        /* LEGEND */
+        .legend {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-top: 2rem;
+            padding: 1.5rem;
+            background: var(--bg);
+            border-radius: 8px;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .legend-color {
+            width: 24px;
+            height: 24px;
+            border-radius: 4px;
+        }
+
+        .legend-text {
+            font-size: 0.85rem;
+        }
+
+        /* STATS */
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 1rem;
+            margin-top: 2rem;
+        }
+
+        .stat-card {
+            background: var(--bg);
+            padding: 1.5rem;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 2.5rem;
+            font-weight: 700;
+            font-family: 'JetBrains Mono', monospace;
+            margin-bottom: 0.5rem;
+        }
+
+        .stat-card.good .stat-value {
+            color: var(--success);
+        }
+
+        .stat-card.bad .stat-value {
+            color: var(--danger);
+        }
+
+        .stat-label {
+            font-size: 0.85rem;
+            color: var(--text-dim);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        /* EXPLANATION */
+        .explanation {
+            background: var(--surface-light);
+            padding: 1.5rem;
+            border-radius: 8px;
+            margin-top: 2rem;
+            border-left: 4px solid var(--info);
+        }
+
+        .explanation h4 {
+            color: var(--info);
+            margin-bottom: 0.75rem;
+            font-size: 1rem;
+        }
+
+        .explanation p {
+            color: var(--text-dim);
+            line-height: 1.8;
+        }
+
+        .explanation strong {
+            color: var(--warning);
+            font-weight: 600;
+        }
+
+        .step-indicator {
+            display: inline-block;
+            background: var(--info);
+            color: white;
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            margin-right: 0.5rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Priority Inheritance Visualizer</h1>
+            <p class="subtitle">Interactive comparison showing how priority inheritance prevents priority inversion</p>
+        </header>
+
+        <div class="intro">
+            <h2>The Problem: Priority Inversion</h2>
+            <p><strong>Scenario:</strong> Three processes need to run — HIGH priority (1), MEDIUM priority (5), and LOW priority (10). LOW acquires a lock that HIGH needs later.</p>
+            <p style="margin-top: 1rem;"><strong>Without priority inheritance:</strong> MEDIUM preempts LOW and blocks HIGH indirectly, causing unbounded delays.</p>
+            <p style="margin-top: 0.5rem;"><strong>With priority inheritance:</strong> When HIGH waits, LOW is temporarily boosted to priority 1, allowing it to finish quickly.</p>
+        </div>
+
+        <div class="controls">
+            <button class="btn" onclick="runAnimation()">▶ Play Animation</button>
+            <button class="btn btn-secondary" onclick="resetAnimation()">↻ Reset</button>
+        </div>
+
+        <div class="comparison">
+            <!-- WITHOUT Priority Inheritance -->
+            <div class="scenario problem">
+                <div class="scenario-header">
+                    <div class="scenario-icon">❌</div>
+                    <div class="scenario-title">WITHOUT Priority Inheritance</div>
+                </div>
+
+                <div class="timeline-container">
+                    <div class="timeline-header">
+                        <div class="timeline-title">Timeline (seconds)</div>
+                    </div>
+
+                    <div class="time-scale">
+                        <div class="time-marker">0</div>
+                        <div class="time-marker">1</div>
+                        <div class="time-marker">2</div>
+                        <div class="time-marker">3</div>
+                        <div class="time-marker">4</div>
+                        <div class="time-marker">5</div>
+                        <div class="time-marker">6</div>
+                        <div class="time-marker">7</div>
+                        <div class="time-marker">8</div>
+                        <div class="time-marker">9</div>
+                    </div>
+
+                    <div id="timeline-without">
+                        <!-- HIGH Process -->
+                        <div class="process-row">
+                            <div class="process-label">
+                                <div class="process-priority high">1</div>
+                                <span>HIGH</span>
+                            </div>
+                            <div class="process-timeline">
+                                <div class="time-grid">
+                                    <div class="time-grid-line"></div>
+                                    <div class="time-grid-line"></div>
+                                    <div class="time-grid-line"></div>
+                                    <div class="time-grid-line"></div>
+                                    <div class="time-grid-line"></div>
+                                    <div class="time-grid-line"></div>
+                                    <div class="time-grid-line"></div>
+                                    <div class="time-grid-line"></div>
+                                    <div class="time-grid-line"></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- MEDIUM Process -->
+                        <div class="process-row">
+                            <div class="process-label">
+                                <div class="process-priority medium">5</div>
+                                <span>MEDIUM</span>
+                            </div>
+                            <div class="process-timeline">
+                                <div class="time-grid">
+                                    <div class="time-grid-line"></div>
+                                    <div class="time-grid-line"></div>
+                                    <div class="time-grid-line"></div>
+                                    <div class="time-grid-line"></div>
+                                    <div class="time-grid-line"></div>
+                                    <div class="time-grid-line"></div>
+                                    <div class="time-grid-line"></div>
+                                    <div class="time-grid-line"></div>
+                                    <div class="time-grid-line"></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- LOW Process -->
+                        <div class="process-row">
+                            <div class="process-label">
+                                <div class="process-priority low">10</div>
+                                <span>LOW</span>
+                            </div>
+                            <div class="process-timeline">
+                                <div class="time-grid">
+                                    <div class="time-grid-line"></div>
+                                    <div class="time-grid-line"></div>
+                                    <div class="time-grid-line"></div>
+                                    <div class="time-grid-line"></div>
+                                    <div class="time-grid-line"></div>
+                                    <div class="time-grid-line"></div>
+                                    <div class="time-grid-line"></div>
+                                    <div class="time-grid-line"></div>
+                                    <div class="time-grid-line"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="stats">
+                    <div class="stat-card bad">
+                        <div class="stat-value" id="wait-without">—</div>
+                        <div class="stat-label">HIGH Wait Time</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="total-without">—</div>
+                        <div class="stat-label">Total Time</div>
+                    </div>
+                </div>
+
+                <div class="explanation">
+                    <h4>What Happened:</h4>
+                    <p>
+                        <span class="step-indicator">1</span> LOW starts and acquires lock (pri=10)<br>
+                        <span class="step-indicator">2</span> MEDIUM preempts LOW (pri=5 &gt; pri=10)<br>
+                        <span class="step-indicator">3</span> HIGH waits for lock held by LOW<br>
+                        <span class="step-indicator">4</span> <strong>Problem: HIGH blocked by MEDIUM!</strong><br>
+                        <span class="step-indicator">5</span> MEDIUM finishes, then LOW resumes<br>
+                        <span class="step-indicator">6</span> Finally HIGH can run
+                    </p>
+                </div>
+            </div>
+
+            <!-- WITH Priority Inheritance -->
+            <div class="scenario solution">
+                <div class="scenario-header">
+                    <div class="scenario-icon">✅</div>
+                    <div class="scenario-title">WITH Priority Inheritance</div>
+                </div>
+
+                <div class="timeline-container">
+                    <div class="timeline-header">
+                        <div class="timeline-title">Timeline (seconds)</div>
+                    </div>
+
+                    <div class="time-scale">
+                        <div class="time-marker">0</div>
+                        <div class="time-marker">1</div>
+                        <div class="time-marker">2</div>
+                        <div class="time-marker">3</div>
+                        <div class="time-marker">4</div>
+                        <div class="time-marker">5</div>
+                        <div class="time-marker">6</div>
+                        <div class="time-marker">7</div>
+                        <div class="time-marker">8</div>
+                        <div class="time-marker">9</div>
+                    </div>
+
+                    <div id="timeline-with">
+                        <!-- HIGH Process -->
+                        <div class="process-row">
+                            <div class="process-label">
+                                <div class="process-priority high">1</div>
+                                <span>HIGH</span>
+                            </div>
+                            <div class="process-timeline">
+                                <div class="time-grid">
+                                    <div class="time-grid-line"></div>
+                                    <div class="time-grid-line"></div>
+                                    <div class="time-grid-line"></div>
+                                    <div class="time-grid-line"></div>
+                                    <div class="time-grid-line"></div>
+                                    <div class="time-grid-line"></div>
+                                    <div class="time-grid-line"></div>
+                                    <div class="time-grid-line"></div>
+                                    <div class="time-grid-line"></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- MEDIUM Process -->
+                        <div class="process-row">
+                            <div class="process-label">
+                                <div class="process-priority medium">5</div>
+                                <span>MEDIUM</span>
+                            </div>
+                            <div class="process-timeline">
+                                <div class="time-grid">
+                                    <div class="time-grid-line"></div>
+                                    <div class="time-grid-line"></div>
+                                    <div class="time-grid-line"></div>
+                                    <div class="time-grid-line"></div>
+                                    <div class="time-grid-line"></div>
+                                    <div class="time-grid-line"></div>
+                                    <div class="time-grid-line"></div>
+                                    <div class="time-grid-line"></div>
+                                    <div class="time-grid-line"></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- LOW Process -->
+                        <div class="process-row">
+                            <div class="process-label">
+                                <div class="process-priority low">10</div>
+                                <span>LOW</span>
+                            </div>
+                            <div class="process-timeline">
+                                <div class="time-grid">
+                                    <div class="time-grid-line"></div>
+                                    <div class="time-grid-line"></div>
+                                    <div class="time-grid-line"></div>
+                                    <div class="time-grid-line"></div>
+                                    <div class="time-grid-line"></div>
+                                    <div class="time-grid-line"></div>
+                                    <div class="time-grid-line"></div>
+                                    <div class="time-grid-line"></div>
+                                    <div class="time-grid-line"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="stats">
+                    <div class="stat-card good">
+                        <div class="stat-value" id="wait-with">—</div>
+                        <div class="stat-label">HIGH Wait Time</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="total-with">—</div>
+                        <div class="stat-label">Total Time</div>
+                    </div>
+                </div>
+
+                <div class="explanation">
+                    <h4>What Happened:</h4>
+                    <p>
+                        <span class="step-indicator">1</span> LOW starts and acquires lock (pri=10)<br>
+                        <span class="step-indicator">2</span> MEDIUM starts (pri=5)<br>
+                        <span class="step-indicator">3</span> HIGH waits for lock<br>
+                        <span class="step-indicator">4</span> <strong>LOW boosted to pri=1 (inheritance!)</strong><br>
+                        <span class="step-indicator">5</span> LOW preempts MEDIUM and finishes<br>
+                        <span class="step-indicator">6</span> HIGH runs immediately, MEDIUM last
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <div class="legend">
+            <div class="legend-item">
+                <div class="legend-color" style="background: linear-gradient(135deg, var(--high-color), #dc2626);"></div>
+                <div class="legend-text">Running / Waiting (HIGH priority)</div>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: linear-gradient(135deg, var(--med-color), #d97706);"></div>
+                <div class="legend-text">Running (MEDIUM priority)</div>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: linear-gradient(135deg, var(--low-color), #2563eb);"></div>
+                <div class="legend-text">Running (LOW priority)</div>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: linear-gradient(135deg, #10b981, #059669);"></div>
+                <div class="legend-text">Priority Boosted (LOW → 1)</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let isAnimating = false;
+
+        function sleep(ms) {
+            return new Promise(resolve => setTimeout(resolve, ms));
+        }
+
+        function addBlock(timeline, processIndex, startPercent, widthPercent, className, text, annotation = '') {
+            const rows = timeline.querySelectorAll('.process-row');
+            const timelineEl = rows[processIndex].querySelector('.process-timeline');
+            
+            const block = document.createElement('div');
+            block.className = `time-block ${className}`;
+            block.textContent = text;
+            block.style.left = `${startPercent}%`;
+            block.style.width = `${widthPercent}%`;
+            
+            if (annotation) {
+                const ann = document.createElement('div');
+                ann.className = 'annotation';
+                ann.textContent = annotation;
+                ann.style.left = `${startPercent + widthPercent/2}%`;
+                ann.style.transform = 'translateX(-50%)';
+                block.appendChild(ann);
+            }
+            
+            timelineEl.appendChild(block);
+            
+            setTimeout(() => block.classList.add('visible'), 50);
+            
+            return block;
+        }
+
+        function addLock(timeline, processIndex, positionPercent) {
+            const rows = timeline.querySelectorAll('.process-row');
+            const timelineEl = rows[processIndex].querySelector('.process-timeline');
+            
+            const lock = document.createElement('div');
+            lock.className = 'lock-icon';
+            lock.textContent = '🔒';
+            lock.style.left = `${positionPercent}%`;
+            lock.style.transform = 'translateX(-50%)';
+            
+            timelineEl.appendChild(lock);
+            return lock;
+        }
+
+        async function runAnimation() {
+            if (isAnimating) return;
+            isAnimating = true;
+
+            resetAnimation();
+            await sleep(500);
+
+            // Run both timelines in parallel
+            await Promise.all([
+                animateWithout(),
+                animateWith()
+            ]);
+
+            isAnimating = false;
+        }
+
+        async function animateWithout() {
+            const timeline = document.getElementById('timeline-without');
+            
+            // t=0-2: LOW acquires lock and runs
+            const lock = addLock(timeline, 2, 5);
+            const low1 = addBlock(timeline, 2, 0, 22.2, 'low', 'Has lock', '🔒 Lock acquired');
+            await sleep(1000);
+
+            // t=2: MEDIUM starts, preempts LOW
+            const med = addBlock(timeline, 1, 22.2, 44.4, 'medium', 'Preempts LOW', '⚡ Preempts');
+            await sleep(1000);
+
+            // t=3: HIGH tries to acquire, waits
+            const high1 = addBlock(timeline, 0, 33.3, 55.5, 'waiting', 'WAITING for lock...', '❌ Blocked!');
+            await sleep(3000);
+
+            // t=6: MEDIUM finishes, LOW resumes
+            await sleep(500);
+
+            // t=6-8: LOW finishes work
+            const low2 = addBlock(timeline, 2, 66.6, 22.2, 'low', 'Finishes');
+            await sleep(2000);
+
+            // t=8: Lock released
+            lock.remove();
+
+            // t=8-9: HIGH finally runs
+            const high2 = addBlock(timeline, 0, 88.8, 11.1, 'high', 'Runs');
+            await sleep(1000);
+
+            // Update stats
+            document.getElementById('wait-without').textContent = '5s';
+            document.getElementById('total-without').textContent = '9s';
+        }
+
+        async function animateWith() {
+            const timeline = document.getElementById('timeline-with');
+            
+            // t=0-2: LOW acquires lock and runs
+            const lock = addLock(timeline, 2, 5);
+            const low1 = addBlock(timeline, 2, 0, 22.2, 'low', 'Has lock (pri=10)', '🔒 Lock acquired');
+            await sleep(1000);
+
+            // t=2: MEDIUM starts
+            const med1 = addBlock(timeline, 1, 22.2, 11.1, 'medium', 'Starts', '');
+            await sleep(1000);
+
+            // t=3: HIGH waits, LOW is BOOSTED
+            const high1 = addBlock(timeline, 0, 33.3, 22.2, 'waiting', 'Waiting...', '');
+            await sleep(300);
+            const low2 = addBlock(timeline, 2, 33.3, 22.2, 'boosted', 'BOOSTED (pri=1)', '🚀 Boosted to 1!');
+            await sleep(2000);
+
+            // t=5: LOW finishes, lock released
+            lock.remove();
+
+            // t=5-6: HIGH runs
+            const high2 = addBlock(timeline, 0, 55.5, 11.1, 'high', 'Runs');
+            await sleep(1000);
+
+            // t=6-9: MEDIUM finishes
+            const med2 = addBlock(timeline, 1, 66.6, 33.3, 'medium', 'Finishes last');
+            await sleep(3000);
+
+            // Update stats
+            document.getElementById('wait-with').textContent = '2s';
+            document.getElementById('total-with').textContent = '9s';
+        }
+
+        function resetAnimation() {
+            document.querySelectorAll('.time-block, .lock-icon, .annotation').forEach(el => el.remove());
+            document.getElementById('wait-without').textContent = '—';
+            document.getElementById('total-without').textContent = '—';
+            document.getElementById('wait-with').textContent = '—';
+            document.getElementById('total-with').textContent = '—';
+            isAnimating = false;
+        }
+
+        // Auto-run on load
+        window.addEventListener('load', () => {
+            setTimeout(() => runAnimation(), 1000);
+        });
+    </script>
+</body>
+</html>

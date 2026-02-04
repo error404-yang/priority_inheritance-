@@ -20,3 +20,9 @@
 #define SYS_link   19
 #define SYS_mkdir  20
 #define SYS_close  21
+// ADD THESE - make sure the numbers don't conflict with existing ones
+#define SYS_setpriority 22
+#define SYS_getpriority 23
+#define SYS_test_acquire 24
+#define SYS_test_release 25
+#define SYS_cpu_work 26

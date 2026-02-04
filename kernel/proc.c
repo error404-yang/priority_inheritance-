@@ -6,6 +6,13 @@
 #include "proc.h"
 #include "defs.h"
 
+struct pi_lock {
+  uint locked;                // is it held?
+  struct spinlock lk;         // spinlock protecting these fields (held briefly)
+  struct proc *holder;        // who holds it (NULL if free)
+  int original_priority;      // holder's priority before we boosted it (0 = not boosted)
+} pi_lock;
+
 struct cpu cpus[NCPU];
 
 struct proc proc[NPROC];
@@ -25,6 +32,7 @@ extern char trampoline[]; // trampoline.S
 // memory model when using p->parent.
 // must be acquired before any p->lock.
 struct spinlock wait_lock;
+struct spinlock test_lock;
 
 // Allocate a page for each process's kernel stack.
 // Map it high in memory, followed by an invalid
@@ -51,6 +59,12 @@ procinit(void)
   
   initlock(&pid_lock, "nextpid");
   initlock(&wait_lock, "wait_lock");
+  initlock(&test_lock, "test_lock");
+  initlock(&pi_lock.lk, "pi_lock");  // CRITICAL: Initialize pi_lock's spinlock
+  pi_lock.locked = 0;
+  pi_lock.holder = 0;
+  pi_lock.original_priority = 0;
+  
   for(p = proc; p < &proc[NPROC]; p++) {
       initlock(&p->lock, "proc");
       p->state = UNUSED;
@@ -124,6 +138,9 @@ allocproc(void)
 found:
   p->pid = allocpid();
   p->state = USED;
+   // ADD THESE LINES - Initialize priority fields
+  p->priority = PRIORITY_NORMAL;
+  p->original_priority = PRIORITY_NORMAL;
 
   // Allocate a trapframe page.
   if((p->trapframe = (struct trapframe *)kalloc()) == 0){
@@ -429,35 +446,36 @@ scheduler(void)
 
   c->proc = 0;
   for(;;){
-    // The most recent process to run may have had interrupts
-    // turned off; enable them to avoid a deadlock if all
-    // processes are waiting. Then turn them back off
-    // to avoid a possible race between an interrupt
-    // and wfi.
     intr_on();
-    intr_off();
 
-    int found = 0;
+    // Find the highest-priority RUNNABLE process and run it.
+    // We scan all processes while holding each lock momentarily.
+    struct proc *best = 0;
+    int best_pri = 999;
+
     for(p = proc; p < &proc[NPROC]; p++) {
       acquire(&p->lock);
-      if(p->state == RUNNABLE) {
-        // Switch to chosen process.  It is the process's job
-        // to release its lock and then reacquire it
-        // before jumping back to us.
-        p->state = RUNNING;
-        c->proc = p;
-        swtch(&c->context, &p->context);
-
-        // Process is done running for now.
-        // It should have changed its p->state before coming back.
-        c->proc = 0;
-        found = 1;
+      if(p->state == RUNNABLE && p->priority < best_pri) {
+        // Found a better candidate
+        if(best != 0)
+          release(&best->lock);  // release previous best
+        best = p;
+        best_pri = p->priority;
+        // Keep p->lock held for best candidate
+      } else {
+        release(&p->lock);
       }
-      release(&p->lock);
     }
-    if(found == 0) {
-      // nothing to run; stop running on this core until an interrupt.
-      asm volatile("wfi");
+
+    // If we found a runnable process, run it
+    if(best != 0) {
+      // best->lock is still held from the scan above
+      best->state = RUNNING;
+      c->proc = best;
+      swtch(&c->context, &best->context);
+      // When we get back, best->lock is still held by convention
+      c->proc = 0;
+      release(&best->lock);
     }
   }
 }
@@ -687,4 +705,144 @@ procdump(void)
     printf("%d %s %s", p->pid, state, p->name);
     printf("\n");
   }
+}
+// System call to set process priority
+uint64
+sys_setpriority(void)
+{
+  int priority;
+  
+  // Just call argint - it returns void, not int
+  argint(0, &priority);
+  
+  // Validate priority range
+  if(priority < 1 || priority > 10)
+    return -1;
+    
+  struct proc *p = myproc();
+  acquire(&p->lock);
+  p->priority = priority;
+  p->original_priority = priority;
+  release(&p->lock);
+  
+  return 0;
+}
+// System call to get process priority
+uint64
+sys_getpriority(void)
+{
+  struct proc *p = myproc();
+  int priority;
+  
+  acquire(&p->lock);
+  priority = p->priority;
+  release(&p->lock);
+  
+  return priority;
+}
+
+// Improved kernel functions for kernel/proc.c
+// Replace the existing sys_test_* functions with these
+
+// Fixed kernel functions for kernel/proc.c
+// These replace the existing test functions
+
+// CRITICAL FIX for kernel/proc.c
+// Print AFTER lock operations, not during
+
+// IMPROVED kernel/proc.c syscalls
+// These detect priority changes and report them
+
+uint64
+sys_test_acquire(void)
+{
+  struct proc *p = myproc();
+
+  acquire(&pi_lock.lk);
+
+  // If lock is already held, try to acquire it
+  if(pi_lock.locked) {
+    printf("[KERNEL] PID=%d REQUESTED lock (held by PID=%d)\n", 
+           p->pid, pi_lock.holder ? pi_lock.holder->pid : 0);
+    printf("[KERNEL] PID=%d BLOCKED\n", p->pid);
+  }
+
+  // Sleep until the lock is free.
+  while(pi_lock.locked) {
+    // Priority inheritance: if we have higher priority (lower number)
+    // than the current holder, boost the holder up to our level.
+    if(pi_lock.holder != 0 && p->priority < pi_lock.holder->priority) {
+      if(pi_lock.original_priority == 0)
+        pi_lock.original_priority = pi_lock.holder->priority;
+      
+      int old_pri = pi_lock.holder->priority;
+      pi_lock.holder->priority = p->priority;
+      
+      printf("\n[KERNEL] *** PRIORITY INHERITANCE TRIGGERED ***\n");
+      printf("[KERNEL] PID=%d PRIORITY BOOSTED %d -> %d\n", 
+             pi_lock.holder->pid, old_pri, p->priority);
+      printf("[KERNEL] (PID=%d with priority=%d is waiting)\n\n", 
+             p->pid, p->priority);
+    }
+    sleep(&pi_lock, &pi_lock.lk);  // releases pi_lock.lk, re-acquires on wake
+  }
+
+  // Lock is free — claim it.
+  pi_lock.locked = 1;
+  pi_lock.holder = p;
+  pi_lock.original_priority = 0;  // This holder hasn't been boosted yet
+
+  printf("[KERNEL] PID=%d ACQUIRED lock\n", p->pid);
+
+  release(&pi_lock.lk);
+  return 0;
+}
+
+uint64
+sys_test_release(void)
+{
+  struct proc *p = myproc();
+  
+  acquire(&pi_lock.lk);
+
+  // --- restore holder's original priority if it was boosted ---
+  if(pi_lock.holder != 0 && pi_lock.original_priority != 0) {
+    int old_pri = pi_lock.holder->priority;
+    pi_lock.holder->priority = pi_lock.original_priority;
+    
+    printf("\n[KERNEL] *** PRIORITY RESTORED ***\n");
+    printf("[KERNEL] PID=%d PRIORITY RESTORED %d -> %d\n", 
+           pi_lock.holder->pid, old_pri, pi_lock.original_priority);
+    printf("[KERNEL] PID=%d RELEASED lock\n\n", p->pid);
+    
+    pi_lock.original_priority = 0;
+  } else {
+    printf("[KERNEL] PID=%d RELEASED lock\n", p->pid);
+  }
+
+  pi_lock.locked = 0;
+  pi_lock.holder = 0;
+  wakeup(&pi_lock);             // wake all processes sleeping on this lock
+
+  release(&pi_lock.lk);
+  return 0;
+}
+
+// ---------- REPLACE sys_cpu_work with this ----------
+
+uint64
+sys_cpu_work(void)
+{
+  int iterations;
+  argint(0, &iterations);
+
+  volatile long sum = 0;
+  for(long i = 0; i < (long)iterations; i++) {
+    sum += i;
+    // Yield every 100000 iterations (less frequent = better priority respect)
+    if(i % 100000 == 0)
+      yield();
+  }
+
+  return 0;
 }

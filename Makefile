@@ -145,6 +145,18 @@ UPROGS=\
 	$U/_logstress\
 	$U/_forphan\
 	$U/_dorphan\
+        $U/_priority_test\
+        $U/_pi_demo\
+        $U/_pi_final\
+        $U/_pi_safe\
+        $U/_pi_simple\
+        $U/_pi_minimal\
+        $U/_pi_userwork\
+        $U/_pi_test\
+        $U/_pi_test2\
+        $U/_simple_test\
+        $U/_pi_simple_demo\
+        $U/_pi_detailed
 
 fs.img: mkfs/mkfs README $(UPROGS)
 	mkfs/mkfs fs.img README $(UPROGS)

@@ -6,7 +6,8 @@
 #include "proc.h"
 #include "syscall.h"
 #include "defs.h"
-
+#define SYS_setpriority 22
+#define SYS_getpriority 23
 // Fetch the uint64 at addr from the current process.
 int
 fetchaddr(uint64 addr, uint64 *ip)
@@ -101,6 +102,12 @@ extern uint64 sys_unlink(void);
 extern uint64 sys_link(void);
 extern uint64 sys_mkdir(void);
 extern uint64 sys_close(void);
+// ADD THESE LINES:
+extern uint64 sys_setpriority(void);
+extern uint64 sys_getpriority(void);
+extern uint64 sys_test_acquire(void);
+extern uint64 sys_test_release(void);
+extern uint64 sys_cpu_work(void);
 
 // An array mapping syscall numbers from syscall.h
 // to the function that handles the system call.
@@ -126,6 +133,12 @@ static uint64 (*syscalls[])(void) = {
 [SYS_link]    sys_link,
 [SYS_mkdir]   sys_mkdir,
 [SYS_close]   sys_close,
+// ADD THESE LINES:
+[SYS_setpriority] sys_setpriority,
+[SYS_getpriority] sys_getpriority,
+[SYS_test_acquire] sys_test_acquire,
+[SYS_test_release] sys_test_release,
+[SYS_cpu_work] sys_cpu_work,
 };
 
 void

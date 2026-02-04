@@ -1,0 +1,7 @@
+[0][ACQUIRE][5][10][test_lock]
+[2000][WAIT][7][1][test_lock]
+[2000][BOOST][5][1][inherits priority]
+[5000][RELEASE][5][10][test_lock]
+[5000][ACQUIRE][7][1][test_lock]
+[6000][RELEASE][7][1][test_lock]
+
