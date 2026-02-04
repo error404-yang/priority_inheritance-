@@ -1,0 +1,548 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>xv6 Priority Inheritance Monitor</title>
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            color: #333;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+        }
+
+        header {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            margin-bottom: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+
+        h1 {
+            color: #1e3c72;
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        .status {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 20px;
+            background: #27ae60;
+            color: white;
+            border-radius: 20px;
+            font-weight: 600;
+        }
+
+        .status-dot {
+            width: 12px;
+            height: 12px;
+            background: white;
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .metric-card {
+            background: white;
+            padding: 25px;
+            border-radius: 15px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            transition: transform 0.3s ease;
+        }
+
+        .metric-card:hover {
+            transform: translateY(-5px);
+        }
+
+        .metric-value {
+            font-size: 3em;
+            font-weight: 700;
+            color: #2c3e50;
+            margin: 10px 0;
+        }
+
+        .metric-label {
+            color: #7f8c8d;
+            font-size: 0.9em;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .metric-icon {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        .boost-count { color: #e74c3c; }
+        .inversion-count { color: #f39c12; }
+        .process-count { color: #3498db; }
+        .uptime-count { color: #27ae60; }
+
+        .chart-container {
+            background: white;
+            padding: 25px;
+            border-radius: 15px;
+            margin-bottom: 20px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+
+        .chart-title {
+            font-size: 1.3em;
+            color: #2c3e50;
+            margin-bottom: 20px;
+            font-weight: 600;
+        }
+
+        .events-container {
+            background: white;
+            padding: 25px;
+            border-radius: 15px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            max-height: 500px;
+            overflow-y: auto;
+        }
+
+        .event-item {
+            padding: 15px;
+            margin-bottom: 10px;
+            border-radius: 8px;
+            border-left: 4px solid #3498db;
+            background: #ecf0f1;
+            animation: slideIn 0.3s ease;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateX(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        .event-boost {
+            border-left-color: #e74c3c;
+            background: #fee;
+        }
+
+        .event-inversion {
+            border-left-color: #f39c12;
+            background: #ffeaa7;
+        }
+
+        .event-time {
+            font-size: 0.8em;
+            color: #7f8c8d;
+            margin-bottom: 5px;
+        }
+
+        .event-details {
+            font-weight: 600;
+            color: #2c3e50;
+        }
+
+        .process-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+
+        .process-table th,
+        .process-table td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #ecf0f1;
+        }
+
+        .process-table th {
+            background: #34495e;
+            color: white;
+            font-weight: 600;
+        }
+
+        .process-table tr:hover {
+            background: #f8f9fa;
+        }
+
+        .badge {
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 0.85em;
+            font-weight: 600;
+        }
+
+        .badge-high {
+            background: #e74c3c;
+            color: white;
+        }
+
+        .badge-medium {
+            background: #f39c12;
+            color: white;
+        }
+
+        .badge-low {
+            background: #27ae60;
+            color: white;
+        }
+
+        canvas {
+            max-height: 300px;
+        }
+
+        .alert {
+            padding: 15px 20px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            animation: slideIn 0.5s ease;
+        }
+
+        .alert-warning {
+            background: #fff3cd;
+            border-left: 4px solid #f39c12;
+            color: #856404;
+        }
+
+        .alert-danger {
+            background: #f8d7da;
+            border-left: 4px solid #e74c3c;
+            color: #721c24;
+        }
+
+        .grid-2col {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(600px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        @media (max-width: 768px) {
+            .grid-2col {
+                grid-template-columns: 1fr;
+            }
+            h1 {
+                font-size: 1.8em;
+            }
+            .metric-value {
+                font-size: 2em;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🔒 xv6 Priority Inheritance Monitor</h1>
+            <p style="color: #7f8c8d; margin: 10px 0;">Real-time kernel monitoring and priority inversion detection</p>
+            <div class="status">
+                <div class="status-dot"></div>
+                <span>Live Monitoring</span>
+            </div>
+        </header>
+
+        <!-- Metrics Dashboard -->
+        <div class="metrics-grid">
+            <div class="metric-card">
+                <div class="metric-icon boost-count">⬆️</div>
+                <div class="metric-value boost-count" id="total-boosts">0</div>
+                <div class="metric-label">Priority Boosts</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-icon inversion-count">⚠️</div>
+                <div class="metric-value inversion-count" id="total-inversions">0</div>
+                <div class="metric-label">Inversions Detected</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-icon process-count">🔄</div>
+                <div class="metric-value process-count" id="active-processes">0</div>
+                <div class="metric-label">Active Processes</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-icon uptime-count">⏱️</div>
+                <div class="metric-value uptime-count" id="uptime">0s</div>
+                <div class="metric-label">Uptime</div>
+            </div>
+        </div>
+
+        <!-- Charts -->
+        <div class="grid-2col">
+            <div class="chart-container">
+                <div class="chart-title">📊 Priority Boosts Over Time</div>
+                <canvas id="boostChart"></canvas>
+            </div>
+            <div class="chart-container">
+                <div class="chart-title">🎯 Process Priority Distribution</div>
+                <canvas id="priorityChart"></canvas>
+            </div>
+        </div>
+
+        <!-- Real-time Events -->
+        <div class="chart-container">
+            <div class="chart-title">📡 Real-time Events</div>
+            <div id="alerts-container"></div>
+            <div class="events-container" id="events-list">
+                <p style="color: #7f8c8d; text-align: center;">Waiting for events...</p>
+            </div>
+        </div>
+
+        <!-- Process Statistics -->
+        <div class="chart-container">
+            <div class="chart-title">📋 Process Statistics</div>
+            <table class="process-table" id="process-table">
+                <thead>
+                    <tr>
+                        <th>PID</th>
+                        <th>Priority</th>
+                        <th>Boosts Received</th>
+                        <th>Boosts Given</th>
+                        <th>Locks Held</th>
+                        <th>Blocks</th>
+                    </tr>
+                </thead>
+                <tbody id="process-tbody">
+                    <tr>
+                        <td colspan="6" style="text-align: center; color: #7f8c8d;">No process data yet...</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        // WebSocket connection
+        const socket = io('http://localhost:5000');
+        
+        // Charts
+        let boostChart, priorityChart;
+        let boostData = [];
+        let boostLabels = [];
+        
+        // Initialize charts
+        function initCharts() {
+            const boostCtx = document.getElementById('boostChart').getContext('2d');
+            boostChart = new Chart(boostCtx, {
+                type: 'line',
+                data: {
+                    labels: boostLabels,
+                    datasets: [{
+                        label: 'Priority Boosts',
+                        data: boostData,
+                        borderColor: '#e74c3c',
+                        backgroundColor: 'rgba(231, 76, 60, 0.1)',
+                        tension: 0.4,
+                        fill: true
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+            
+            const priorityCtx = document.getElementById('priorityChart').getContext('2d');
+            priorityChart = new Chart(priorityCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['High Priority (1-3)', 'Medium Priority (4-7)', 'Low Priority (8-10)'],
+                    datasets: [{
+                        data: [0, 0, 0],
+                        backgroundColor: ['#e74c3c', '#f39c12', '#27ae60']
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true
+                }
+            });
+        }
+        
+        // Update metrics
+        function updateMetrics(stats) {
+            document.getElementById('total-boosts').textContent = stats.total_boosts;
+            document.getElementById('total-inversions').textContent = stats.total_inversions;
+            document.getElementById('active-processes').textContent = stats.active_processes;
+            document.getElementById('uptime').textContent = Math.floor(stats.uptime) + 's';
+            
+            // Update boost chart
+            const now = new Date().toLocaleTimeString();
+            boostLabels.push(now);
+            boostData.push(stats.total_boosts);
+            
+            if (boostLabels.length > 20) {
+                boostLabels.shift();
+                boostData.shift();
+            }
+            
+            boostChart.update();
+            
+            // Update priority distribution
+            const processList = Object.values(stats.process_stats || {});
+            let high = 0, medium = 0, low = 0;
+            
+            processList.forEach(proc => {
+                if (proc.priority >= 1 && proc.priority <= 3) high++;
+                else if (proc.priority >= 4 && proc.priority <= 7) medium++;
+                else low++;
+            });
+            
+            priorityChart.data.datasets[0].data = [high, medium, low];
+            priorityChart.update();
+            
+            // Update process table
+            updateProcessTable(stats.process_stats);
+        }
+        
+        // Update process table
+        function updateProcessTable(processStats) {
+            const tbody = document.getElementById('process-tbody');
+            
+            if (!processStats || Object.keys(processStats).length === 0) {
+                return;
+            }
+            
+            tbody.innerHTML = '';
+            
+            Object.entries(processStats).forEach(([pid, stats]) => {
+                if (stats.priority === 0) return; // Skip uninitialized
+                
+                const row = document.createElement('tr');
+                
+                let priorityBadge = 'badge-low';
+                if (stats.priority >= 1 && stats.priority <= 3) priorityBadge = 'badge-high';
+                else if (stats.priority >= 4 && stats.priority <= 7) priorityBadge = 'badge-medium';
+                
+                row.innerHTML = `
+                    <td><strong>${pid}</strong></td>
+                    <td><span class="badge ${priorityBadge}">${stats.priority}</span></td>
+                    <td>${stats.boosts_received}</td>
+                    <td>${stats.boosts_given}</td>
+                    <td>${stats.locks_held}</td>
+                    <td>${stats.blocks}</td>
+                `;
+                
+                tbody.appendChild(row);
+            });
+        }
+        
+        // Add event to list
+        function addEvent(event, type = 'info') {
+            const eventsList = document.getElementById('events-list');
+            
+            // Clear "waiting" message
+            if (eventsList.querySelector('p')) {
+                eventsList.innerHTML = '';
+            }
+            
+            const eventItem = document.createElement('div');
+            eventItem.className = `event-item event-${type}`;
+            
+            const time = new Date(event.timestamp).toLocaleTimeString();
+            let details = '';
+            
+            if (event.event === 'priority_boost' || event.holder_pid) {
+                details = `PID ${event.holder_pid} boosted from priority ${event.old_priority} → ${event.new_priority} (waiter: PID ${event.waiter_pid})`;
+            } else if (event.high_priority_pid) {
+                details = `Inversion: High priority PID ${event.high_priority_pid} (pri=${event.high_priority}) blocked by low priority PID ${event.low_priority_pid} (pri=${event.low_priority})`;
+            }
+            
+            eventItem.innerHTML = `
+                <div class="event-time">${time}</div>
+                <div class="event-details">${details}</div>
+            `;
+            
+            eventsList.insertBefore(eventItem, eventsList.firstChild);
+            
+            // Keep only last 50 events
+            while (eventsList.children.length > 50) {
+                eventsList.removeChild(eventsList.lastChild);
+            }
+        }
+        
+        // Add alert
+        function addAlert(message, type = 'warning') {
+            const alertsContainer = document.getElementById('alerts-container');
+            
+            const alert = document.createElement('div');
+            alert.className = `alert alert-${type}`;
+            alert.innerHTML = `
+                <span style="font-size: 1.5em;">${type === 'danger' ? '🚨' : '⚠️'}</span>
+                <div><strong>${message}</strong></div>
+            `;
+            
+            alertsContainer.appendChild(alert);
+            
+            setTimeout(() => {
+                alert.style.opacity = '0';
+                setTimeout(() => alert.remove(), 500);
+            }, 5000);
+        }
+        
+        // Socket event handlers
+        socket.on('connect', () => {
+            console.log('Connected to monitor server');
+        });
+        
+        socket.on('stats_update', (stats) => {
+            updateMetrics(stats);
+        });
+        
+        socket.on('priority_boost', (event) => {
+            addEvent(event, 'boost');
+            addAlert(`Priority boost: PID ${event.holder_pid} → ${event.new_priority}`, 'warning');
+        });
+        
+        socket.on('inversion_detected', (event) => {
+            addEvent(event, 'inversion');
+            addAlert(`Priority inversion detected! High-priority PID ${event.high_priority_pid} blocked`, 'danger');
+        });
+        
+        // Initialize
+        initCharts();
+        
+        // Fetch initial stats
+        fetch('http://localhost:5000/api/stats')
+            .then(r => r.json())
+            .then(stats => updateMetrics(stats))
+            .catch(err => console.error('Error fetching stats:', err));
+    </script>
+</body>
+</html>

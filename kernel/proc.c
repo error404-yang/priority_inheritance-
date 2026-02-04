@@ -765,6 +765,12 @@ sys_test_acquire(void)
     printf("[KERNEL] PID=%d REQUESTED lock (held by PID=%d)\n", 
            p->pid, pi_lock.holder ? pi_lock.holder->pid : 0);
     printf("[KERNEL] PID=%d BLOCKED\n", p->pid);
+    
+    // JSON log for monitoring system
+    printf("{\"event\":\"lock_request\",\"pid\":%d,\"priority\":%d,\"holder_pid\":%d,\"holder_priority\":%d}\n",
+           p->pid, p->priority, 
+           pi_lock.holder ? pi_lock.holder->pid : 0,
+           pi_lock.holder ? pi_lock.holder->priority : 0);
   }
 
   // Sleep until the lock is free.
@@ -783,6 +789,10 @@ sys_test_acquire(void)
              pi_lock.holder->pid, old_pri, p->priority);
       printf("[KERNEL] (PID=%d with priority=%d is waiting)\n\n", 
              p->pid, p->priority);
+      
+      // JSON log for monitoring system
+      printf("{\"event\":\"priority_boost\",\"holder_pid\":%d,\"old_priority\":%d,\"new_priority\":%d,\"waiter_pid\":%d,\"waiter_priority\":%d}\n",
+             pi_lock.holder->pid, old_pri, p->priority, p->pid, p->priority);
     }
     sleep(&pi_lock, &pi_lock.lk);  // releases pi_lock.lk, re-acquires on wake
   }
@@ -793,6 +803,9 @@ sys_test_acquire(void)
   pi_lock.original_priority = 0;  // This holder hasn't been boosted yet
 
   printf("[KERNEL] PID=%d ACQUIRED lock\n", p->pid);
+  
+  // JSON log for monitoring system
+  printf("{\"event\":\"lock_acquired\",\"pid\":%d,\"priority\":%d}\n", p->pid, p->priority);
 
   release(&pi_lock.lk);
   return 0;
@@ -815,10 +828,17 @@ sys_test_release(void)
            pi_lock.holder->pid, old_pri, pi_lock.original_priority);
     printf("[KERNEL] PID=%d RELEASED lock\n\n", p->pid);
     
+    // JSON log for monitoring system
+    printf("{\"event\":\"priority_restore\",\"pid\":%d,\"old_priority\":%d,\"new_priority\":%d}\n",
+           pi_lock.holder->pid, old_pri, pi_lock.original_priority);
+    
     pi_lock.original_priority = 0;
   } else {
     printf("[KERNEL] PID=%d RELEASED lock\n", p->pid);
   }
+  
+  // JSON log for monitoring system
+  printf("{\"event\":\"lock_released\",\"pid\":%d}\n", p->pid);
 
   pi_lock.locked = 0;
   pi_lock.holder = 0;
