@@ -34,7 +34,7 @@ pi_test2       2 24 41712
 simple_test    2 25 36056
 pi_detailed    2 26 41808
 console        3 27 0
-$ pi  pi_detailed
+$ pi_detailed
 
 ============================================================
          PRIORITY INHERITANCE DEMONSTRATION
@@ -73,11 +73,11 @@ $ pi  pi_detailed
 
 {"event":"priority_restore","pid":5,"old_priority":1,"new_priority":10}
 {"event":"lock_released","pid":5}
-[[KERNEL] PID=6 ACQUIRED lock
+[U[KERNEL] PID=6 ACQUIRED lock
 {"event":"lock_acquired","pid":6,"priority":1}
-[USUSEER] PIDR]=6  RUNNPID=5ING FINI wiSth HEDl (opriorcity=10k
-)
+[USESR] PER] IDPI=5 FID=NIS6 HERUDNNI NG wi(prithority=1 l0)
 
+ock
 [KERNEL] PID=6 RELEASED lock
 {"event":"lock_released","pid":6}
 [USER] PID=6 FINISHED
@@ -141,14 +141,80 @@ $ pi_detailed
 {"event":"lock_released","pid":9}
 [[KERNEL] PID=10 ACQUIRED lock
 {"event":"lock_acquired","pid":10,"priority":1}
-[USUSEER] PIR]D=10  PRUIDNNIN=9 G FINwISithHE lD o(pck
-riority=10)
+[USUSEER]R] PI PD=ID9 =1FINI0SHED RUN (NINpriG oritwiy=1th0) l
 
+ock
 [KERNEL] PID=10 RELEASED lock
 {"event":"lock_released","pid":10}
 [USER] PID=10 FINISHED
 
 [USER] PID=11 FINISHED
+
+============================================================
+                    ANALYSIS
+============================================================
+Expected behavior WITH priority inheritance:
+  1. LOW (pri=10) acquires lock
+  2. HIGH (pri=1) tries to acquire, BLOCKS
+  3. LOW gets BOOSTED to pri=1
+  4. MEDIUM (pri=5) cannot run (LOW has higher priority)
+  5. LOW finishes, priority RESTORED to 10
+  6. HIGH acquires lock and finishes
+  7. MEDIUM finally runs
+
+WITHOUT priority inheritance:
+  MEDIUM would run before LOW finishes (priority inversion!)
+============================================================
+
+$ pi_detailed
+
+============================================================
+         PRIORITY INHERITANCE DEMONSTRATION
+============================================================
+  LOW    = priority 10
+  MEDIUM = priority 5
+  HIGH   = priority 1
+============================================================
+
+[USER] PID=13 STARTED (priority=10, LOW)
+[KERNEL] PID=13 ACQUIRED lock
+{"event":"lock_acquired","pid":13,"priority":10}
+[USER] PID=13 HOLDING lock, working...
+[USER] PID=13 RUNNING (priority=10)
+[USER] PID=14 STARTED (priority=1, HIGH)
+[USER] PID=14 TRYING to acquire lock...
+[KERNEL] PID=14 REQUESTED lock (held by PID=13)
+[KERNEL] PID=14 BLOCKED
+{"event":"lock_request","pid":14,"priority":1,"holder_pid":13,"holder_priority":10}
+
+[KERNEL] *** PRIORITY INHERITANCE TRIGGERED ***
+[KERNEL] PID=13 PRIORITY BOOSTED 10 -> 1
+[KERNEL] (PID=14 with priority=1 is waiting)
+
+{"event":"priority_boost","holder_pid":13,"old_priority":10,"new_priority":1,"waiter_pid":14,"waiter_priority":1}
+[USER] PID=13 RUNNING (priority=1)
+[USER] PID=15 STARTED (priority=5, MEDIUM)
+[USER] PID=15 Does NOT need the lock
+[USER] PID=15 TRYING to run...
+[USER] PID=13 RUNNING (priority=1)
+[USER] PID=13 RUNNING (priority=1)
+
+[KERNEL] *** PRIORITY RESTORED ***
+[KERNEL] PID=13 PRIORITY RESTORED 1 -> 10
+[KERNEL] PID=13 RELEASED lock
+
+{"event":"priority_restore","pid":13,"old_priority":1,"new_priority":10}
+{"event":"lock_released","pid":13}
+[[KERNEL] PID=14 ACQUIRED lock
+{"event":"lock_acquired","pid":14,"priority":1}
+[USUER] PISED=1R]3 FINISHED (pr iorPityID=10)=14 R
+
+UNNING with lock
+[KERNEL] PID=14 RELEASED lock
+{"event":"lock_released","pid":14}
+[USER] PID=14 FINISHED
+
+[USER] PID=15 FINISHED
 
 ============================================================
                     ANALYSIS
@@ -173,48 +239,48 @@ $ pi_test2
    LOW=10  MEDIUM=5  HIGH=1
 ============================================
 
-[PID=13][LOW]  pri=10  acquiring lock
-[KERNEL] PID=13 ACQUIRED lock
-{"event":"lock_acquired","pid":13,"priority":10}
-[PID=13][LOW]  pri=10  lock held
-[PID=13][LOW]  pri=10  chunk 0/8
-[PID=14][MED]  pri=5  working (no lock)
-[PID=13][LOW]  pri=10  chunk 1/8
+[PID=17][LOW]  pri=10  acquiring lock
+[KERNEL] PID=17 ACQUIRED lock
+{"event":"lock_acquired","pid":17,"priority":10}
+[PID=17][LOW]  pri=10  lock held
+[PID=17][LOW]  pri=10  chunk 0/8
+[PID=18][MED]  pri=5  working (no lock)
+[PID=17][LOW]  pri=10  chunk 1/8
 
-[PID=15][HIGH] pri=1  acquiring lock
+[PID=19][HIGH] pri=1  acquiring lock
                (should boost LOW to pri=1 now)
 
-[KERNEL] PID=15 REQUESTED lock (held by PID=13)
-[KERNEL] PID=15 BLOCKED
-{"event":"lock_request","pid":15,"priority":1,"holder_pid":13,"holder_priority":10}
+[KERNEL] PID=19 REQUESTED lock (held by PID=17)
+[KERNEL] PID=19 BLOCKED
+{"event":"lock_request","pid":19,"priority":1,"holder_pid":17,"holder_priority":10}
 
 [KERNEL] *** PRIORITY INHERITANCE TRIGGERED ***
-[KERNEL] PID=13 PRIORITY BOOSTED 10 -> 1
-[KERNEL] (PID=15 with priority=1 is waiting)
+[KERNEL] PID=17 PRIORITY BOOSTED 10 -> 1
+[KERNEL] (PID=19 with priority=1 is waiting)
 
-{"event":"priority_boost","holder_pid":13,"old_priority":10,"new_priority":1,"waiter_pid":15,"waiter_priority":1}
-[PID=13][LOW]  pri=1  chunk 2/8
-[PID=13][LOW]  pri=1  chunk 3/8
-[PID=13][LOW]  pri=1  chunk 4/8
-[PID=14][MED]  pri=5  done
-[PID=13][LOW]  pri=1  chunk 5/8
-[PID=13][LOW]  pri=1  chunk 6/8
-[PID=13][LOW]  pri=1  chunk 7/8
-[PID=13][LOW]  pri=1  releasing lock
+{"event":"priority_boost","holder_pid":17,"old_priority":10,"new_priority":1,"waiter_pid":19,"waiter_priority":1}
+[PID=17][LOW]  pri=1  chunk 2/8
+[PID=17][LOW]  pri=1  chunk 3/8
+[PID=17][LOW]  pri=1  chunk 4/8
+[PID=18][MED]  pri=5  done
+[PID=17][LOW]  pri=1  chunk 5/8
+[PID=17][LOW]  pri=1  chunk 6/8
+[PID=17][LOW]  pri=1  chunk 7/8
+[PID=17][LOW]  pri=1  releasing lock
 
 [KERNEL] *** PRIORITY RESTORED ***
-[KERNEL] PID=13 PRIORITY RESTORED 1 -> 10
-[KERNEL] PID=13 RELEASED lock
+[KERNEL] PID=17 PRIORITY RESTORED 1 -> 10
+[KERNEL] PID=17 RELEASED lock
 
-{"event":"priority_restore","pid":13,"old_priority":1,"new_priority":10}
-{"event":"lock_released","pid":13}
-[KERNEL] PID=15 ACQUIRED lock
-{"event":"lock_acquired","pid":15,"priority":1}
-[[PID=PI15D=][1H3][LIGH]O pri=W]1    lopck hri=1el0  locdk
- released
-[KERNEL] PID=15 RELEASED lock
-{"event":"lock_released","pid":15}
-[PID=15][HIGH] pri=1  done
+{"event":"priority_restore","pid":17,"old_priority":1,"new_priority":10}
+{"event":"lock_released","pid":17}
+[KERNEL] PID=19 ACQUIRED lock
+{"event":"lock_acquired","pid":19,"priority":1}
+[PID=1[P7]I[LD=19O]W] [ priHIG=H10 ]  lock rperileas=ed1
+  lock held
+[KERNEL] PID=19 RELEASED lock
+{"event":"lock_released","pid":19}
+[PID=19][HIGH] pri=1  done
 
 ============================================
               SUMMARY
@@ -225,6 +291,59 @@ SUCCESS! Priority inheritance working:
   3. LOW finished, restored to pri=10
   4. HIGH acquired lock and completed
 ============================================
+
+$ pi_simple
+
+==============================================
+  Priority Inheritance Demonstration
+==============================================
+
+Scenario:
+  Process LOW (priority 10) will hold a lock
+  Process MED (priority 5) will do CPU work
+  Process HIGH (priority 1) will wait for lock
+  -> LOW should be boosted to priority 1
+
+Starting test...
+
+[LOW-10] Acquiring lock...
+[KERNEL] PID=21 ACQUIRED lock
+{"event":"lock_acquired","pid":21,"priority":10}
+[LOW-10] Got lock! Doing long work...
+[MED-5] Doing CPU work (no lock needed)...
+[HIGH-1] Need the lock! Waiting...
+[HIGH-1] >>> Priority inheritance should happen now! <<<
+[KERNEL] PID=23 REQUESTED lock (held by PID=21)
+[KERNEL] PID=23 BLOCKED
+{"event":"lock_request","pid":23,"priority":1,"holder_pid":21,"holder_priority":10}
+
+[KERNEL] *** PRIORITY INHERITANCE TRIGGERED ***
+[KERNEL] PID=21 PRIORITY BOOSTED 10 -> 1
+[KERNEL] (PID=23 with priority=1 is waiting)
+
+{"event":"priority_boost","holder_pid":21,"old_priority":10,"new_priority":1,"waiter_pid":23,"waiter_priority":1}
+[MED-5] Done!
+[LOW-10] Done! Releasing lock...
+
+[KERNEL] *** PRIORITY RESTORED ***
+[KERNEL] PID=21 PRIORITY RESTORED 1 -> 10
+[KERNEL] PID=21 RELEASED lock
+
+{"event":"priority_restore","pid":21,"old_priority":1,"new_priority":10}
+{"event":"lock_released","pid":21}
+[KERNEL] PID=23 ACQUIRED lock
+{"event":"lock_acquired","pid":23,"priority":1}
+[HIGH-1] Got lock!
+[KERNEL] PID=23 RELEASED lock
+{"event":"lock_released","pid":23}
+
+==============================================
+  Test Complete!
+==============================================
+
+Look for:
+  [PI] BOOST: ... (pri 10->1)  <- This means it worked!
+  [PI] RESTORE: ... (pri 1->10)
 
 $ QEMU: Terminated
 
